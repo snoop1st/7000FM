@@ -1,10 +1,11 @@
 package com.snoop.fm7000
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.media.MediaPlayer
-import android.os.Build
-import android.widget.Toast
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.util.Log
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -17,48 +18,46 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import com.snoop.fm7000.ui.theme.DynamicMaterial3Theme
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collectLatest
+
+// ✅ Use MutableStateFlow for state updates across recompositions
+private val isPlayingState = MutableStateFlow(false)
 
 @Composable
-fun HomeScreen(
-    mediaPlayer: MediaPlayer,
-    fetchTrack: (callback: (String?) -> Unit) -> Unit
-) {
-    var isPlaying by remember { mutableStateOf(false) }
-    var currentTrack by remember { mutableStateOf("Fetching track...") }
+fun HomeScreen(fetchTrack: (callback: (String?) -> Unit) -> Unit) {
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
+    var currentTrack by remember { mutableStateOf("Fetching track...") }
+    val isPlaying by isPlayingState.collectAsState() // Observe the playback state
 
-    // Check and request notification permission
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(
-                context as MainActivity,
-                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                MainActivity.NOTIFICATION_PERMISSION_REQUEST_CODE
-            )
-        } else {
-            // Permission already granted, start the service
-            MusicService.startService(context)
-        }
-    } else {
-        // Permission not required, start the service
-        MusicService.startService(context)
-    }
-
-    // Fetch the current track when the composable is displayed
+    // Fetch track info when UI appears
     LaunchedEffect(Unit) {
         fetchTrack { track ->
             currentTrack = track ?: "Track not found"
+        }
+    }
+
+    // ✅ BroadcastReceiver to listen for playback state updates
+    DisposableEffect(Unit) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                val newState = intent?.getBooleanExtra("isPlaying", false) ?: false
+                Log.d("HomeScreen", "Received playback state: $newState")
+                isPlayingState.value = newState // ✅ Update MutableStateFlow
+            }
+        }
+
+        val filter = IntentFilter("com.snoop.fm7000.PLAYBACK_STATE_CHANGED")
+        ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+
+        onDispose {
+            context.unregisterReceiver(receiver)
         }
     }
 
@@ -73,37 +72,29 @@ fun HomeScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                // Replace the CircleShape with the static image
+                // Album art image
                 Image(
-                    painter = painterResource(id = R.drawable.fm7000_for_home), // Reference to your image file
+                    painter = painterResource(id = R.drawable.fm7000_for_home),
                     contentDescription = "Album Art",
                     modifier = Modifier
-                        .size(200.dp) // Size of the image
-                        .clip(CircleShape), // Clip the image into a circle
-                    contentScale = ContentScale.Crop // Scale the image appropriately
+                        .size(200.dp)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop
                 )
-
                 Spacer(modifier = Modifier.height(16.dp))
-
-                // Current Track Display
+                // Display current track title
                 Text(
                     text = currentTrack,
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onBackground
                 )
-
                 Spacer(modifier = Modifier.height(16.dp))
-
-                // Play/Pause Button
+                // Play/Pause button
                 IconButton(
                     onClick = {
-                        if (isPlaying) {
-                            mediaPlayer.pause()
-                        } else {
-                            mediaPlayer.start()
-                        }
-                        isPlaying = !isPlaying
-                        Toast.makeText(context, "Play state: $isPlaying", Toast.LENGTH_SHORT).show()
+                        val action = if (isPlaying) "ACTION_PAUSE" else "ACTION_PLAY"
+                        sendActionToService(context, action)
+                        Log.d("HomeScreen", "Button clicked: $action")
                     },
                     modifier = Modifier
                         .size(72.dp)
@@ -111,7 +102,7 @@ fun HomeScreen(
                 ) {
                     Icon(
                         imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = "Play/Pause",
+                        contentDescription = if (isPlaying) "Pause" else "Play",
                         tint = MaterialTheme.colorScheme.onPrimary
                     )
                 }
@@ -120,13 +111,10 @@ fun HomeScreen(
     )
 }
 
-@Preview(showBackground = true)
-@Composable
-fun HomeScreenPreview() {
-    DynamicMaterial3Theme {
-        HomeScreen(
-            mediaPlayer = MediaPlayer(),
-            fetchTrack = { callback -> callback("Track Name - Artist") }
-        )
+// ✅ Function to send play/pause actions to MediaService
+fun sendActionToService(context: Context, action: String) {
+    val intent = Intent(context, MediaService::class.java).apply {
+        this.action = action
     }
+    ContextCompat.startForegroundService(context, intent)
 }

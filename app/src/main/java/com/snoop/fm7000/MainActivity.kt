@@ -1,64 +1,32 @@
 package com.snoop.fm7000
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.media.MediaPlayer
-import android.os.Build
+import android.annotation.SuppressLint
+import android.content.Intent
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.appcompat.app.AppCompatActivity
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import com.snoop.fm7000.ui.theme.DynamicMaterial3Theme
 import kotlinx.coroutines.*
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.Jsoup
-import java.io.IOException
 
-class MainActivity : AppCompatActivity() {
-    private lateinit var mediaPlayer: MediaPlayer
+class MainActivity : ComponentActivity() {
     private val client = OkHttpClient()
 
+    @SuppressLint("ResourceType")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Start the MediaService when the app opens
+        val intent = Intent(this, MediaService::class.java)
+        startService(intent)
+
         setContent {
             DynamicMaterial3Theme {
-                HomeScreen(
-                    mediaPlayer = mediaPlayer,
-                    fetchTrack = ::fetchCurrentTrack
-                )
+                HomeScreen(fetchTrack = ::fetchCurrentTrack)
             }
         }
-
-        mediaPlayer = MediaPlayer()
-        try {
-            mediaPlayer.setDataSource("https://stream.7000fm.gr/radio/8000/radio.mp3")
-            mediaPlayer.prepare()
-        } catch (e: IOException) {
-            e.printStackTrace()
-            Toast.makeText(this, "Failed to load stream", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == NOTIFICATION_PERMISSION_REQUEST_CODE) {
-            if ((grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
-                MusicService.startService(this)
-            } else {
-                // Permission denied, handle accordingly
-            }
-        }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        mediaPlayer.release()
     }
 
     private fun fetchCurrentTrack(callback: (String?) -> Unit) {
@@ -87,9 +55,5 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-    }
-
-    companion object {
-        const val NOTIFICATION_PERMISSION_REQUEST_CODE = 1
     }
 }

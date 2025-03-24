@@ -80,6 +80,10 @@ dependencies {
     implementation ("com.squareup.okhttp3:okhttp:4.11.0")
     implementation ("androidx.compose.material:material-icons-extended:1.0.0")
     implementation ("androidx.media:media:1.3.0")  // For media style
+    implementation ("com.google.android.exoplayer:exoplayer:2.18.5")
+    implementation ("androidx.media:media:1.6.0")
+    implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
+
 
 
 
