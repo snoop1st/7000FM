@@ -29,13 +29,11 @@ class MediaService : MediaBrowserServiceCompat() {
     override fun onCreate() {
         super.onCreate()
 
-        // ✅ Initialize ExoPlayer
         player = SimpleExoPlayer.Builder(this).build().apply {
             setMediaItem(MediaItem.fromUri("https://stream.7000fm.gr/radio/8000/radio.mp3"))
             prepare()
         }
 
-        // ✅ Create MediaSession
         mediaSession = MediaSessionCompat(this, "MediaService").apply {
             setFlags(
                 MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS or
@@ -60,13 +58,19 @@ class MediaService : MediaBrowserServiceCompat() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            "ACTION_PLAY" -> handlePlay()
-            "ACTION_PAUSE" -> handlePause()
+            "ACTION_PLAY" -> {
+                Log.d("MediaService", "Received ACTION_PLAY") // ✅ Debugging log
+                handlePlay()
+            }
+            "ACTION_PAUSE" -> {
+                Log.d("MediaService", "Received ACTION_PAUSE") // ✅ Debugging log
+                handlePause()
+            }
+            else -> Log.d("MediaService", "Unknown action received: ${intent?.action}")
         }
         return START_STICKY
     }
 
-    // ✅ Handle Play Action
     private fun handlePlay() {
         player.play()
 
@@ -75,10 +79,10 @@ class MediaService : MediaBrowserServiceCompat() {
         val metadata = MediaMetadataCompat.Builder()
             .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "7000FM")
             .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "")
-            .putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, albumArtBitmap) // ✅ This sets the artwork
+            .putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, albumArtBitmap)
             .build()
 
-        mediaSession.setMetadata(metadata) // ✅ Apply metadata
+        mediaSession.setMetadata(metadata)
 
         updatePlaybackState(PlaybackStateCompat.STATE_PLAYING)
         updateNotification()
@@ -86,8 +90,6 @@ class MediaService : MediaBrowserServiceCompat() {
         Log.d("MediaService", "ACTION_PLAY processed with custom album art")
     }
 
-
-    // ✅ Handle Pause Action
     private fun handlePause() {
         player.pause()
 
@@ -95,7 +97,7 @@ class MediaService : MediaBrowserServiceCompat() {
             MediaMetadataCompat.Builder(it)
                 .build()
         }
-        mediaSession.setMetadata(metadata) // ✅ Keep the last metadata
+        mediaSession.setMetadata(metadata)
 
         updatePlaybackState(PlaybackStateCompat.STATE_PAUSED)
         updateNotification()
@@ -103,15 +105,12 @@ class MediaService : MediaBrowserServiceCompat() {
         Log.d("MediaService", "ACTION_PAUSE processed")
     }
 
-
-    // ✅ Update Playback State
     private fun updatePlaybackState(state: Int) {
         val playbackState = stateBuilder.setState(state, player.currentPosition, 1f).build()
         mediaSession.setPlaybackState(playbackState)
         sendPlaybackStateBroadcast(state == PlaybackStateCompat.STATE_PLAYING)
     }
 
-    // ✅ Broadcast Playback State
     private fun sendPlaybackStateBroadcast(isPlaying: Boolean) {
         val intent = Intent("com.snoop.fm7000.PLAYBACK_STATE_CHANGED").apply {
             putExtra("isPlaying", isPlaying)
@@ -140,7 +139,6 @@ class MediaService : MediaBrowserServiceCompat() {
         result: Result<MutableList<MediaBrowserCompat.MediaItem>>
     ) {}
 
-    // ✅ MediaSession Callbacks
     private val mediaSessionCallback = object : MediaSessionCompat.Callback() {
         override fun onPlay() = handlePlay()
         override fun onPause() = handlePause()
@@ -151,17 +149,15 @@ class MediaService : MediaBrowserServiceCompat() {
         }
     }
 
-    // ✅ Update Notification
     private fun updateNotification() {
         val notification = createMediaNotification()
         startForeground(1, notification)
     }
 
-    // ✅ Create Media Notification
     private fun createMediaNotification(): Notification {
         val metadata = mediaSession.controller.metadata
         val albumArtBitmap = metadata?.getBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART)
-            ?: BitmapFactory.decodeResource(resources, R.drawable.fm7000_og) // ✅ Default image
+            ?: BitmapFactory.decodeResource(resources, R.drawable.fm7000_og)
 
         val channelId = "MEDIA_PLAYBACK_CHANNEL"
         val channel = NotificationChannel(
@@ -173,7 +169,7 @@ class MediaService : MediaBrowserServiceCompat() {
             .setContentTitle(metadata?.getString(MediaMetadataCompat.METADATA_KEY_TITLE) ?: "7000FM")
             .setContentText(metadata?.getString(MediaMetadataCompat.METADATA_KEY_ARTIST) ?: "")
             .setSmallIcon(R.drawable.ic_music)
-            .setLargeIcon(albumArtBitmap) // ✅ This sets the Quick Settings/Lock Screen image
+            .setLargeIcon(albumArtBitmap)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setStyle(
                 androidx.media.app.NotificationCompat.MediaStyle()
@@ -183,9 +179,6 @@ class MediaService : MediaBrowserServiceCompat() {
             .build()
     }
 
-
-
-    // ✅ Start Foreground Service
     private fun startForegroundService() {
         startForeground(1, createMediaNotification())
     }

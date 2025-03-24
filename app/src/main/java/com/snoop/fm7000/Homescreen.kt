@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.util.Log
+import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -21,35 +22,29 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.snoop.fm7000.ui.theme.DynamicMaterial3Theme
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.collectLatest
 
-// ✅ Use MutableStateFlow for state updates across recompositions
 private val isPlayingState = MutableStateFlow(false)
 
 @Composable
 fun HomeScreen(fetchTrack: (callback: (String?) -> Unit) -> Unit) {
     val context = LocalContext.current
     var currentTrack by remember { mutableStateOf("Fetching track...") }
-    val isPlaying by isPlayingState.collectAsState() // Observe the playback state
+    val isPlaying by isPlayingState.collectAsState()
 
-    // Fetch track info when UI appears
     LaunchedEffect(Unit) {
         fetchTrack { track ->
             currentTrack = track ?: "Track not found"
         }
     }
 
-    // ✅ BroadcastReceiver to listen for playback state updates
     DisposableEffect(Unit) {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 val newState = intent?.getBooleanExtra("isPlaying", false) ?: false
-                Log.d("HomeScreen", "Received playback state: $newState")
-                isPlayingState.value = newState // ✅ Update MutableStateFlow
+                Log.d("HomeScreen", "Broadcast received: isPlaying = $newState")
+                isPlayingState.value = newState
             }
         }
 
@@ -72,7 +67,6 @@ fun HomeScreen(fetchTrack: (callback: (String?) -> Unit) -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                // Album art image
                 Image(
                     painter = painterResource(id = R.drawable.fm7000_for_home),
                     contentDescription = "Album Art",
@@ -82,19 +76,19 @@ fun HomeScreen(fetchTrack: (callback: (String?) -> Unit) -> Unit) {
                     contentScale = ContentScale.Crop
                 )
                 Spacer(modifier = Modifier.height(16.dp))
-                // Display current track title
+
                 Text(
                     text = currentTrack,
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 Spacer(modifier = Modifier.height(16.dp))
-                // Play/Pause button
+
                 IconButton(
                     onClick = {
-                        val action = if (isPlaying) "ACTION_PAUSE" else "ACTION_PLAY"
-                        sendActionToService(context, action)
-                        Log.d("HomeScreen", "Button clicked: $action")
+                        val newAction = if (isPlaying) "ACTION_PAUSE" else "ACTION_PLAY"
+                        sendActionToService(context, newAction)
+                        isPlayingState.value = !isPlaying // Update the state
                     },
                     modifier = Modifier
                         .size(72.dp)
@@ -102,7 +96,7 @@ fun HomeScreen(fetchTrack: (callback: (String?) -> Unit) -> Unit) {
                 ) {
                     Icon(
                         imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = if (isPlaying) "Pause" else "Play",
+                        contentDescription = "Play/Pause",
                         tint = MaterialTheme.colorScheme.onPrimary
                     )
                 }
@@ -111,10 +105,10 @@ fun HomeScreen(fetchTrack: (callback: (String?) -> Unit) -> Unit) {
     )
 }
 
-// ✅ Function to send play/pause actions to MediaService
 fun sendActionToService(context: Context, action: String) {
+    Log.d("HomeScreen", "📤 Sending Intent: $action")
     val intent = Intent(context, MediaService::class.java).apply {
         this.action = action
     }
-    ContextCompat.startForegroundService(context, intent)
+    context.startService(intent)
 }
